@@ -17,7 +17,6 @@ depends: [
   "dune" {>= "2.8"}
   "ocaml" {>= "4.11.0"}
   "re" {>= "1.10.3"}
-  "catala" {= version}
   "odoc" {with-doc}
 ]
 build: [
