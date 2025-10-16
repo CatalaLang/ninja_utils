@@ -27,11 +27,15 @@ module Expr = struct
   type t = string list
 
   let format =
+    let esc_re =
+      Re.(compile (alt [space; char ':']))
+    in
     Format.pp_print_list
       ~pp_sep:(fun fmt () -> Format.pp_print_char fmt ' ')
       (fun fmt s ->
         Format.pp_print_string fmt
-          (Re.replace_string Re.(compile space) ~by:"$ " s))
+          (Re.replace esc_re s
+             ~f:(fun g -> "$" ^ Re.Group.get g 0)))
 end
 
 module Binding = struct
@@ -90,7 +94,7 @@ module Build = struct
   let empty = make ~outputs:["empty"] "phony"
 
   let unpath ?(sep = "-") path =
-    Re.Pcre.(substitute ~rex:(regexp "/") ~subst:(fun _ -> sep)) path
+    Re.replace_string Re.(compile (str Filename.dir_sep)) ~by:sep path
 
   let format fmt t =
     Format.fprintf fmt "build %a%a: %s%a%a%a%a" Expr.format t.outputs
