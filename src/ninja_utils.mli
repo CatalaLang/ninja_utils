@@ -37,20 +37,27 @@
 (** Ninja variable names, distinguishing binding name ("x") from references in
     expressions ("$x") *)
 module Var : sig
-  type t
+  type atom
+  type list
 
-  val make : string -> t
+  val make_atom : string -> atom
+  val make_string : string -> list
 
-  val name : t -> string
+  val atom_name : atom -> string
+  val list_name : list -> string
   (** Var base name, used when binding it *)
 
-  val v : t -> string
-  (** Var reference with a preceding "$", for use in expressoins *)
+  val atom_ref : atom -> string
+  (** Var reference with a preceding "$", for use in strings *)
 end
 
 (** Helper module to build ninja expressions. *)
 module Expr : sig
-  type t = string list
+  type t =
+    | Atom of string
+    | List of t
+    | Var of Var.list
+    | Raw of string
   (** Ninja expressions are represented as raw string lists, which may contain
       variables or "$-escapes" *)
 
@@ -61,10 +68,13 @@ module Expr : sig
 end
 
 module Binding : sig
-  type t = Var.t * Expr.t
+  type atom = Var.atom * string
+  type list = Var.atom * Expr.t
 
-  val make : Var.t -> Expr.t -> t
-  val format : global:bool -> Format.formatter -> t -> unit
+  val make_atom : Var.atom -> string -> atom
+  val make_list : Var.list -> Expr.t -> list
+  val format_atom : global:bool -> Format.formatter -> atom -> unit
+  val format_list : global:bool -> Format.formatter -> list -> unit
 end
 
 (** {1 Ninja rules} *)

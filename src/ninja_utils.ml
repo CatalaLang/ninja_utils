@@ -16,6 +16,13 @@
 
 (** Ninja variable names *)
 module Var = struct
+  type atom = string
+  type list = string
+
+  let atom_ref (v:atom) : string = Printf.sprintf "${%s}" v
+
+  (* let list_ref (v:list) : Expr.t = Expr.Var (Printf.sprintf "${%s}" v) *)
+
   type t = V of string
 
   let make s = V s
@@ -24,18 +31,37 @@ module Var = struct
 end
 
 module Expr = struct
-  type t = string list
+  type elt =
+    | Atom of string (* may contain atom refs *)
+    (* | AtomicVar of Var.atom *)
+    | List of t
+    | Var of Var.list
+    | Raw of string
+  and t = elt list
 
-  let format =
+  let nin_esc =
     let esc_re =
       Re.(compile (alt [space; char ':']))
     in
-    Format.pp_print_list
-      ~pp_sep:(fun fmt () -> Format.pp_print_char fmt ' ')
-      (fun fmt s ->
-        Format.pp_print_string fmt
-          (Re.replace esc_re s
-             ~f:(fun g -> "$" ^ Re.Group.get g 0)))
+    Re.replace esc_re ~f:(fun g -> "$" ^ Re.Group.get g 0)
+
+  let rec ninja_format_elt = function
+    | Atom s -> quote (nin_esc s)
+    (* | AtomicVar v -> quote (Var.atom_ref v) *)
+    | List t -> ninja_format t
+    | Var v -> sprintf "${%s}" (Var.name v)
+    | Raw op -> nin_esc op
+  and ninja_format t =
+    String.concat " " (List.map ninja_format_elt t)
+
+  let list_format env t =
+    List.concat_map (function
+        | Atom s -> [resolve_vars env s]
+        | List t -> list_format t
+        | Var list_v -> list_format (env list_v)
+        | Raw s -> [s]
+      )
+      t
 end
 
 module Binding = struct
