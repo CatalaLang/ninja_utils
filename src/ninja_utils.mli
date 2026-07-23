@@ -34,30 +34,17 @@
 
 (** {1 Ninja expressions} *)
 
-(** Ninja variable names, distinguishing binding name ("x") from references in
-    expressions ("$x") *)
-module Var : sig
-  type atom
-  type list
-
-  val make_atom : string -> atom
-  val make_string : string -> list
-
-  val atom_name : atom -> string
-  val list_name : list -> string
-  (** Var base name, used when binding it *)
-
-  val atom_ref : atom -> string
-  (** Var reference with a preceding "$", for use in strings *)
-end
-
 (** Helper module to build ninja expressions. *)
-module Expr : sig
-  type t =
-    | Atom of string
+module rec Expr : sig
+  type atom = string
+
+  type elt =
+    | Atom of atom (* may contain spaces and atom refs and need quoting *)
     | List of t
-    | Var of Var.list
-    | Raw of string
+    | Var of t Var.t
+    | Raw of string (* never to be quoted, must not contain spaces *)
+
+  and t = elt list
   (** Ninja expressions are represented as raw string lists, which may contain
       variables or "$-escapes" *)
 
@@ -67,14 +54,28 @@ module Expr : sig
       is made for e.g. newlines) *)
 end
 
-module Binding : sig
-  type atom = Var.atom * string
-  type list = Var.atom * Expr.t
+(** Ninja variable names, distinguishing binding name ("x") from references in
+    expressions ("$x") *)
+and Var : sig
+  type 'a t
 
-  val make_atom : Var.atom -> string -> atom
-  val make_list : Var.list -> Expr.t -> list
-  val format_atom : global:bool -> Format.formatter -> atom -> unit
-  val format_list : global:bool -> Format.formatter -> list -> unit
+  val make_atom : string -> Expr.atom t
+  val make_expr : string -> Expr.t t
+
+  val name : 'a t -> string
+  (** Var base name, used when binding it *)
+
+  val ref : Expr.atom t -> string
+  (** Var reference with a preceding "$", for use in strings *)
+end
+
+module Binding : sig
+  type 'a t = 'a Var.t * 'a
+  type any = Any : 'a t -> any
+
+  val make : 'a Var.t -> 'a -> 'a t
+  val format : global:bool -> Format.formatter -> 'a t -> unit
+  val format_any : global:bool -> Format.formatter -> any -> unit
 end
 
 (** {1 Ninja rules} *)
@@ -92,7 +93,11 @@ module Rule : sig
       ]} *)
 
   val make :
-    ?vars:Binding.t list -> string -> command:Expr.t -> description:Expr.t -> t
+    ?vars:Binding.any list ->
+    string ->
+    command:Expr.t ->
+    description:Expr.t ->
+    t
   (** [make name ~command ~description] returns the corresponding ninja
       {!type:Rule.t}. *)
 
@@ -119,7 +124,7 @@ module Build : sig
     ?implicit_in:Expr.t ->
     outputs:Expr.t ->
     ?implicit_out:Expr.t ->
-    ?vars:(Var.t * Expr.t) list ->
+    ?vars:Binding.any list ->
     string ->
     t
   (** [make ~outputs rule] returns the corresponding ninja {!type:Build.t}. *)
@@ -147,23 +152,27 @@ end
 
 type def =
   | Comment of string
-  | Binding of Binding.t
+  | Binding of Binding.any
   | Rule of Rule.t
   | Build of Build.t
   | Default of Default.t
 
 val comment : string -> def
-val binding : Var.t -> Expr.t -> def
+val binding : 'a Var.t -> 'a -> def
 
 val rule :
-  ?vars:Binding.t list -> string -> command:Expr.t -> description:Expr.t -> def
+  ?vars:Binding.any list ->
+  string ->
+  command:Expr.t ->
+  description:Expr.t ->
+  def
 
 val build :
   ?inputs:Expr.t ->
   ?implicit_in:Expr.t ->
   outputs:Expr.t ->
   ?implicit_out:Expr.t ->
-  ?vars:(Var.t * Expr.t) list ->
+  ?vars:Binding.any list ->
   string ->
   def
 
