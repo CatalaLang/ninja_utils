@@ -74,6 +74,7 @@ module Binding : sig
   type any = Any : 'a t -> any
 
   val make : 'a Var.t -> 'a -> 'a t
+  val make_any : 'a Var.t -> 'a -> any
   val format : global:bool -> Format.formatter -> any -> unit
 end
 

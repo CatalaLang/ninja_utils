@@ -40,6 +40,8 @@ and Expr : sig
     | Raw of string
   and t = elt list
   val format : Format.formatter -> t -> unit
+  val format_display : Format.formatter -> t -> unit
+  val format_path : Format.formatter -> t -> unit
 end = struct
   type atom = string
   type elt =
@@ -66,6 +68,28 @@ end = struct
     Format.pp_print_list
       ~pp_sep:(fun ppf () -> Format.pp_print_char ppf ' ')
       ninja_format_elt ppf t
+
+  let rec format_display_elt ppf = function
+    | Atom s -> Format.pp_print_string ppf s
+    | List t -> format_display ppf t
+    | Var v -> Format.fprintf ppf "${%s}" (Var.name v)
+    | Raw op -> Format.pp_print_string ppf op
+
+  and format_display ppf t =
+    Format.pp_print_list
+      ~pp_sep:(fun ppf () -> Format.pp_print_char ppf ' ')
+      format_display_elt ppf t
+
+  let rec format_path_elt ppf = function
+    | Atom s -> Format.pp_print_string ppf (ninja_escaping s)
+    | List t -> format_path ppf t
+    | Var v -> Format.fprintf ppf "${%s}" (Var.name v)
+    | Raw op -> Format.pp_print_string ppf (ninja_escaping op)
+
+  and format_path ppf t =
+    Format.pp_print_list
+      ~pp_sep:(fun ppf () -> Format.pp_print_char ppf ' ')
+      format_path_elt ppf t
 end
 
 module Binding = struct
@@ -103,7 +127,10 @@ module Rule = struct
       :: Option.(
            to_list
              (map
-                (fun d -> Binding.make_any (Var.make_expr "description") d)
+                (fun d ->
+                  Binding.make_any
+                    { Var.name = "description"; pp = Expr.format_display }
+                    d)
                 rule.description))
       @ rule.vars
     in
@@ -132,20 +159,20 @@ module Build = struct
     Re.replace_string Re.(compile (str Filename.dir_sep)) ~by:sep path
 
   let format fmt t =
-    Format.fprintf fmt "build %a%a: %s%a%a%a%a" Expr.format t.outputs
+    Format.fprintf fmt "build %a%a: %s%a%a%a%a" Expr.format_path t.outputs
       (Format.pp_print_option (fun fmt i ->
            Format.pp_print_string fmt " | ";
-           Expr.format fmt i))
+           Expr.format_path fmt i))
       t.implicit_out t.rule
       (Format.pp_print_option (fun ppf e ->
            Format.pp_print_char ppf ' ';
-           Expr.format ppf e))
+           Expr.format_path ppf e))
       t.inputs
       (fun ppf -> function
         | [] -> ()
         | e ->
           Format.pp_print_string ppf " | ";
-          Expr.format ppf e)
+          Expr.format_path ppf e)
       t.implicit_in
       (if t.vars = [] then fun _ () -> () else Format.pp_print_newline)
       ()
@@ -157,7 +184,7 @@ module Default = struct
   type t = Expr.t
 
   let make rules = rules
-  let format ppf t = Format.fprintf ppf "default %a" Expr.format t
+  let format ppf t = Format.fprintf ppf "default %a" Expr.format_path t
 end
 
 type def =
