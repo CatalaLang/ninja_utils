@@ -15,66 +15,75 @@
    the License. *)
 
 (** Ninja variable names *)
-module Var = struct
-  type atom = string
-  type list = string
+module rec Var : sig
+  type 'a t = { name : string; pp : Format.formatter -> 'a -> unit }
+  val make_atom : string -> Expr.atom t
+  val make_expr : string -> Expr.t t
+  val name : 'a t -> string
+  val ref : Expr.atom t -> string
+end = struct
+  type 'a t =  { name : string; pp : Format.formatter -> 'a -> unit }
 
-  let atom_ref (v:atom) : string = Printf.sprintf "${%s}" v
+  let make_atom name = { name; pp = Format.pp_print_string }
+  let make_expr name = { name; pp = Expr.format }
+  let name v = v.name
 
-  (* let list_ref (v:list) : Expr.t = Expr.Var (Printf.sprintf "${%s}" v) *)
-
-  type t = V of string
-
-  let make s = V s
-  let name (V v) = v
-  let v (V v) = Printf.sprintf "${%s}" v
+  let ref v = Printf.sprintf "${%s}" v.name
 end
 
-module Expr = struct
+and Expr : sig
+  type atom = string
   type elt =
-    | Atom of string (* may contain atom refs *)
-    (* | AtomicVar of Var.atom *)
+    | Atom of atom
     | List of t
-    | Var of Var.list
+    | Var of t Var.t
+    | Raw of string
+  and t = elt list
+  val format : Format.formatter -> t -> unit
+end = struct
+  type atom = string
+  type elt =
+    | Atom of atom
+    | List of t
+    | Var of t Var.t
     | Raw of string
   and t = elt list
 
-  let nin_esc =
+  let ninja_escaping =
     let esc_re =
       Re.(compile (alt [space; char ':']))
     in
     Re.replace esc_re ~f:(fun g -> "$" ^ Re.Group.get g 0)
 
-  let rec ninja_format_elt = function
-    | Atom s -> quote (nin_esc s)
-    (* | AtomicVar v -> quote (Var.atom_ref v) *)
-    | List t -> ninja_format t
-    | Var v -> sprintf "${%s}" (Var.name v)
-    | Raw op -> nin_esc op
-  and ninja_format t =
-    String.concat " " (List.map ninja_format_elt t)
+  let quote s = "\"" ^ s ^ "\"" (* TODO *)
 
-  let list_format env t =
-    List.concat_map (function
-        | Atom s -> [resolve_vars env s]
-        | List t -> list_format t
-        | Var list_v -> list_format (env list_v)
-        | Raw s -> [s]
-      )
-      t
+  let rec ninja_format_elt ppf = function
+    | Atom s -> Format.pp_print_string ppf (quote (ninja_escaping s))
+    | List t -> format ppf t
+    | Var v -> Format.fprintf ppf "${%s}" (Var.name v)
+    | Raw op -> Format.pp_print_string ppf (ninja_escaping op)
+  and format ppf t =
+    Format.pp_print_list
+      ~pp_sep:(fun ppf () -> Format.pp_print_char ppf ' ')
+      ninja_format_elt ppf t
 end
 
 module Binding = struct
-  type t = Var.t * Expr.t
+  type 'a t = 'a Var.t * 'a
+  type any = Any : 'a t -> any
 
-  let make var e = var, e
+  let make v x = v, x
+  let make_any v x = Any (make v x)
 
-  let format ~global ppf (v, e) =
+  let format ~global ppf b =
+  match b with
+  | Any (v, x) ->
     if not global then Format.pp_print_string ppf "  ";
-    Format.fprintf ppf "%s = %a" (Var.name v) Expr.format e
+    Format.fprintf ppf "%s = %a" (Var.name v) v.Var.pp x
 
   let format_list ~global ppf l =
-    Format.pp_print_list ~pp_sep:Format.pp_print_newline (format ~global) ppf l
+    Format.pp_print_list ~pp_sep:Format.pp_print_newline
+      (format ~global) ppf l
 end
 
 module Rule = struct
@@ -82,7 +91,7 @@ module Rule = struct
     name : string;
     command : Expr.t;
     description : Expr.t option;
-    vars : Binding.t list;
+    vars : Binding.any list;
   }
 
   let make ?(vars = []) name ~command ~description =
@@ -90,11 +99,11 @@ module Rule = struct
 
   let format fmt rule =
     let bindings =
-      Binding.make (Var.make "command") rule.command
+      Binding.make_any (Var.make_expr "command") rule.command
       :: Option.(
            to_list
              (map
-                (fun d -> Binding.make (Var.make "description") d)
+                (fun d -> Binding.make_any (Var.make_expr "description") d)
                 rule.description))
       @ rule.vars
     in
@@ -110,14 +119,14 @@ module Build = struct
     implicit_in : Expr.t;
     outputs : Expr.t;
     implicit_out : Expr.t option;
-    vars : Binding.t list;
+    vars : Binding.any list;
   }
 
   let make ?inputs ?(implicit_in = []) ~outputs ?implicit_out ?(vars = []) rule
       =
     { rule; inputs; implicit_in; outputs; implicit_out; vars }
 
-  let empty = make ~outputs:["empty"] "phony"
+  let empty = make ~outputs:[Atom "empty"] "phony"
 
   let unpath ?(sep = "-") path =
     Re.replace_string Re.(compile (str Filename.dir_sep)) ~by:sep path
@@ -153,13 +162,13 @@ end
 
 type def =
   | Comment of string
-  | Binding of Binding.t
+  | Binding of Binding.any
   | Rule of Rule.t
   | Build of Build.t
   | Default of Default.t
 
 let comment s = Comment s
-let binding v e = Binding (Binding.make v e)
+let binding v e = Binding (Binding.make_any v e)
 
 let rule ?vars name ~command ~description =
   Rule (Rule.make ?vars name ~command ~description)
