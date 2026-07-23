@@ -94,9 +94,9 @@ module Rule : sig
 
   val make :
     ?vars:Binding.any list ->
+    ?description:Expr.t ->
     string ->
     command:Expr.t ->
-    description:Expr.t ->
     t
   (** [make name ~command ~description] returns the corresponding ninja
       {!type:Rule.t}. *)
@@ -162,9 +162,9 @@ val binding : 'a Var.t -> 'a -> def
 
 val rule :
   ?vars:Binding.any list ->
+  ?description:Expr.t ->
   string ->
   command:Expr.t ->
-  description:Expr.t ->
   def
 
 val build :

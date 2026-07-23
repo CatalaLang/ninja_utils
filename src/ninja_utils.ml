@@ -118,8 +118,8 @@ module Rule = struct
     vars : Binding.any list;
   }
 
-  let make ?(vars = []) name ~command ~description =
-    { name; command; description = Option.some description; vars }
+  let make ?(vars = []) ?description name ~command =
+    { name; command; description; vars }
 
   let format fmt rule =
     let bindings =
@@ -197,8 +197,8 @@ type def =
 let comment s = Comment s
 let binding v e = Binding (Binding.make_any v e)
 
-let rule ?vars name ~command ~description =
-  Rule (Rule.make ?vars name ~command ~description)
+let rule ?vars ?description name ~command =
+  Rule (Rule.make ?vars ?description name ~command)
 
 let build ?inputs ?implicit_in ~outputs ?implicit_out ?vars rule =
   Build (Build.make ?inputs ?implicit_in ~outputs ?implicit_out ?vars rule)
