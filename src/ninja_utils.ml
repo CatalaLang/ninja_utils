@@ -63,7 +63,12 @@ end = struct
     in
     Re.replace esc_re ~f:(fun g -> "$" ^ Re.Group.get g 0)
 
-  let quote s = "\"" ^ s ^ "\"" (* TODO *)
+  let quote =
+  let trailing_backslashes = Re.(compile (seq [group (rep1 (char '\\')) ; eos])) in
+  fun s ->
+    let s = Re.replace trailing_backslashes 
+    ~f:(fun g -> let backslash = Re.Group.get g 1 in backslash ^ backslash ) s in
+    "\"" ^ s ^ "\""
 
   let rec ninja_format_elt ppf = function
     | Word s -> Format.pp_print_string ppf (quote (ninja_escaping s))
