@@ -70,10 +70,14 @@ end = struct
     ~f:(fun g -> let backslash = Re.Group.get g 1 in backslash ^ backslash ) s in
     "\"" ^ s ^ "\""
 
+  let check_raw op =
+  if String.contains op ' ' then invalid_arg ("Raw with space: " ^ op)
+  else op
+
   let rec ninja_format_elt ppf = function
     | Word s -> Format.pp_print_string ppf (quote (ninja_escaping s))
     | Splice v -> Format.fprintf ppf "${%s}" (Var.name v)
-    | Raw op -> Format.pp_print_string ppf (ninja_escaping op)
+    | Raw op -> Format.pp_print_string ppf (ninja_escaping (check_raw op))
   and format ppf t =
     Format.pp_print_list
       ~pp_sep:(fun ppf () -> Format.pp_print_char ppf ' ')
@@ -82,7 +86,7 @@ end = struct
   let rec format_display_elt ppf = function
     | Word s -> Format.pp_print_string ppf s
     | Splice v -> Format.fprintf ppf "${%s}" (Var.name v)
-    | Raw op -> Format.pp_print_string ppf op
+    | Raw op -> Format.pp_print_string ppf (check_raw op)
 
   and format_display ppf t =
     Format.pp_print_list
@@ -92,7 +96,7 @@ end = struct
   let rec format_path_elt ppf = function
     | Word s -> Format.pp_print_string ppf (ninja_escaping s)
     | Splice v -> Format.fprintf ppf "${%s}" (Var.name v)
-    | Raw op -> Format.pp_print_string ppf (ninja_escaping op)
+    | Raw op -> Format.pp_print_string ppf (ninja_escaping (check_raw op))
 
   and format_path ppf t =
     Format.pp_print_list
