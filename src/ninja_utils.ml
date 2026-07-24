@@ -16,17 +16,27 @@
 
 (** Ninja variable names *)
 module rec Var : sig
-  type 'a t = { name : string; pp : Format.formatter -> 'a -> unit }
+  type _ kind = Word : Expr.atom kind | Words : Expr.t kind
+  type 'a t = { name : string; kind : 'a kind }
   val make_atom : string -> Expr.atom t
   val make_expr : string -> Expr.t t
   val name : 'a t -> string
+  val kind : 'a t -> 'a kind
+  val pp : 'a t -> Format.formatter -> 'a -> unit
   val ref : Expr.atom t -> string
 end = struct
-  type 'a t =  { name : string; pp : Format.formatter -> 'a -> unit }
+  type _ kind = Word : Expr.atom kind | Words : Expr.t kind
+  type 'a t = { name : string; kind : 'a kind }
 
-  let make_atom name = { name; pp = Format.pp_print_string }
-  let make_expr name = { name; pp = Expr.format }
+  let make_atom name = { name; kind = Word }
+  let make_expr name = { name; kind = Words }
   let name v = v.name
+  let kind v = v.kind
+
+  let pp (type a) (v : a t) : Format.formatter -> a -> unit =
+    match v.kind with
+    | Word -> Format.pp_print_string
+    | Words -> Expr.format
 
   let ref v = Printf.sprintf "${%s}" v.name
 end
@@ -103,7 +113,7 @@ module Binding = struct
   match b with
   | Any (v, x) ->
     if not global then Format.pp_print_string ppf "  ";
-    Format.fprintf ppf "%s = %a" (Var.name v) v.Var.pp x
+    Format.fprintf ppf "%s = %a" (Var.name v) (Var.pp v) x
 
   let format_list ~global ppf l =
     Format.pp_print_list ~pp_sep:Format.pp_print_newline
@@ -122,21 +132,16 @@ module Rule = struct
     { name; command; description; vars }
 
   let format fmt rule =
-    let bindings =
-      Binding.make_any (Var.make_expr "command") rule.command
-      :: Option.(
-           to_list
-             (map
-                (fun d ->
-                  Binding.make_any
-                    { Var.name = "description"; pp = Expr.format_display }
-                    d)
-                rule.description))
-      @ rule.vars
-    in
     Format.fprintf fmt "rule %s\n%a" rule.name
-      (Binding.format_list ~global:false)
-      bindings
+      (Binding.format ~global:false)
+      (Binding.make_any (Var.make_expr "command") rule.command);
+    Option.iter
+      (fun d ->
+        Format.fprintf fmt "\n  description = %a" Expr.format_display d)
+      rule.description;
+    List.iter
+      (fun b -> Format.fprintf fmt "\n%a" (Binding.format ~global:false) b)
+      rule.vars
 end
 
 module Build = struct

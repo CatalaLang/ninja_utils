@@ -57,6 +57,7 @@ end
 (** Ninja variable names, distinguishing binding name ("x") from references in
     expressions ("$x") *)
 and Var : sig
+  type _ kind = Word : Expr.atom kind | Words : Expr.t kind
   type 'a t
 
   val make_atom : string -> Expr.atom t
@@ -64,6 +65,11 @@ and Var : sig
 
   val name : 'a t -> string
   (** Var base name, used when binding it *)
+
+  val kind : 'a t -> 'a kind
+
+  val pp : 'a t -> Format.formatter -> 'a -> unit
+  (** Formats a binding value as dictated by the var's kind *)
 
   val ref : Expr.atom t -> string
   (** Var reference with a preceding "$", for use in strings *)
