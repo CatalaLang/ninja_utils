@@ -36,12 +36,9 @@
 
 (** Helper module to build ninja expressions. *)
 module rec Expr : sig
-  type atom = string
-
   type elt =
-    | Atom of atom (* may contain spaces and atom refs and need quoting *)
-    | List of t
-    | Var of t Var.t
+    | Word of string (* may contain spaces and refs and need quoting *)
+    | Splice of t Var.t
     | Raw of string (* never to be quoted, must not contain spaces *)
 
   and t = elt list
@@ -57,11 +54,11 @@ end
 (** Ninja variable names, distinguishing binding name ("x") from references in
     expressions ("$x") *)
 and Var : sig
-  type _ kind = Word : Expr.atom kind | Words : Expr.t kind
+  type _ kind = Scalar : string kind | Vector : Expr.t kind
   type 'a t
 
-  val make_atom : string -> Expr.atom t
-  val make_expr : string -> Expr.t t
+  val make_scalar : string -> string t
+  val make_vector : string -> Expr.t t
 
   val name : 'a t -> string
   (** Var base name, used when binding it *)
@@ -71,7 +68,7 @@ and Var : sig
   val pp : 'a t -> Format.formatter -> 'a -> unit
   (** Formats a binding value as dictated by the var's kind *)
 
-  val ref : Expr.atom t -> string
+  val ref : string t -> string
   (** Var reference with a preceding "$", for use in strings *)
 end
 

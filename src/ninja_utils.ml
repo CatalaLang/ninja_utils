@@ -16,48 +16,44 @@
 
 (** Ninja variable names *)
 module rec Var : sig
-  type _ kind = Word : Expr.atom kind | Words : Expr.t kind
+  type _ kind = Scalar : string kind | Vector : Expr.t kind
   type 'a t = { name : string; kind : 'a kind }
-  val make_atom : string -> Expr.atom t
-  val make_expr : string -> Expr.t t
+  val make_scalar : string -> string t
+  val make_vector : string -> Expr.t t
   val name : 'a t -> string
   val kind : 'a t -> 'a kind
   val pp : 'a t -> Format.formatter -> 'a -> unit
-  val ref : Expr.atom t -> string
+  val ref : string t -> string
 end = struct
-  type _ kind = Word : Expr.atom kind | Words : Expr.t kind
+  type _ kind = Scalar : string kind | Vector : Expr.t kind
   type 'a t = { name : string; kind : 'a kind }
 
-  let make_atom name = { name; kind = Word }
-  let make_expr name = { name; kind = Words }
+  let make_scalar name = { name; kind = Scalar }
+  let make_vector name = { name; kind = Vector }
   let name v = v.name
   let kind v = v.kind
 
   let pp (type a) (v : a t) : Format.formatter -> a -> unit =
     match v.kind with
-    | Word -> Format.pp_print_string
-    | Words -> Expr.format
+    | Scalar -> Format.pp_print_string
+    | Vector -> Expr.format
 
   let ref v = Printf.sprintf "${%s}" v.name
 end
 
 and Expr : sig
-  type atom = string
   type elt =
-    | Atom of atom
-    | List of t
-    | Var of t Var.t
+    | Word of string
+    | Splice of t Var.t
     | Raw of string
   and t = elt list
   val format : Format.formatter -> t -> unit
   val format_display : Format.formatter -> t -> unit
   val format_path : Format.formatter -> t -> unit
 end = struct
-  type atom = string
   type elt =
-    | Atom of atom
-    | List of t
-    | Var of t Var.t
+    | Word of string
+    | Splice of t Var.t
     | Raw of string
   and t = elt list
 
@@ -70,9 +66,8 @@ end = struct
   let quote s = "\"" ^ s ^ "\"" (* TODO *)
 
   let rec ninja_format_elt ppf = function
-    | Atom s -> Format.pp_print_string ppf (quote (ninja_escaping s))
-    | List t -> format ppf t
-    | Var v -> Format.fprintf ppf "${%s}" (Var.name v)
+    | Word s -> Format.pp_print_string ppf (quote (ninja_escaping s))
+    | Splice v -> Format.fprintf ppf "${%s}" (Var.name v)
     | Raw op -> Format.pp_print_string ppf (ninja_escaping op)
   and format ppf t =
     Format.pp_print_list
@@ -80,9 +75,8 @@ end = struct
       ninja_format_elt ppf t
 
   let rec format_display_elt ppf = function
-    | Atom s -> Format.pp_print_string ppf s
-    | List t -> format_display ppf t
-    | Var v -> Format.fprintf ppf "${%s}" (Var.name v)
+    | Word s -> Format.pp_print_string ppf s
+    | Splice v -> Format.fprintf ppf "${%s}" (Var.name v)
     | Raw op -> Format.pp_print_string ppf op
 
   and format_display ppf t =
@@ -91,9 +85,8 @@ end = struct
       format_display_elt ppf t
 
   let rec format_path_elt ppf = function
-    | Atom s -> Format.pp_print_string ppf (ninja_escaping s)
-    | List t -> format_path ppf t
-    | Var v -> Format.fprintf ppf "${%s}" (Var.name v)
+    | Word s -> Format.pp_print_string ppf (ninja_escaping s)
+    | Splice v -> Format.fprintf ppf "${%s}" (Var.name v)
     | Raw op -> Format.pp_print_string ppf (ninja_escaping op)
 
   and format_path ppf t =
@@ -134,7 +127,7 @@ module Rule = struct
   let format fmt rule =
     Format.fprintf fmt "rule %s\n%a" rule.name
       (Binding.format ~global:false)
-      (Binding.make_any (Var.make_expr "command") rule.command);
+      (Binding.make_any (Var.make_vector "command") rule.command);
     Option.iter
       (fun d ->
         Format.fprintf fmt "\n  description = %a" Expr.format_display d)
@@ -158,7 +151,7 @@ module Build = struct
       =
     { rule; inputs; implicit_in; outputs; implicit_out; vars }
 
-  let empty = make ~outputs:[Atom "empty"] "phony"
+  let empty = make ~outputs:[Word "empty"] "phony"
 
   let unpath ?(sep = "-") path =
     Re.replace_string Re.(compile (str Filename.dir_sep)) ~by:sep path
