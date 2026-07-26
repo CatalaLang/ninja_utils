@@ -95,7 +95,7 @@ end = struct
 
   let rec format_path_elt ppf = function
     | Word s -> Format.pp_print_string ppf (ninja_escaping s)
-    | Splice v -> Format.fprintf ppf "${%s}" (Var.name v)
+    | Splice v -> invalid_arg ("vector ${" ^ Var.name v ^ "} in path position")
     | Raw op -> Format.pp_print_string ppf (ninja_escaping (check_raw op))
 
   and format_path ppf t =
