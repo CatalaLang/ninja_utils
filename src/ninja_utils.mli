@@ -75,86 +75,21 @@ and Var : sig
   (** Var reference with a preceding "$", for use in strings *)
 end
 
+(** Rule- or build-scoped [name = value] lines, for the [~vars] arguments *)
 module Binding : sig
   type 'a t = 'a Var.t * 'a
   type any = Any : 'a t -> any
 
-  val make : 'a Var.t -> 'a -> 'a t
-  val make_any : 'a Var.t -> 'a -> any
+  val make : 'a Var.t -> 'a -> any
 end
 
-(** {1 Ninja rules} *)
+(** {1 Ninja statements} *)
 
-(** Helper module to build
-    {{:https://ninja-build.org/manual.html#_rules} ninja rules}. *)
-module Rule : sig
-  type t
-  (** Represents the minimal ninja rule representation for Clerk:
-
-      {[
-        rule <name>
-          command = <command>
-          [description = <description>]
-      ]} *)
-
-  val make :
-    ?vars:Binding.any list ->
-    ?description:Expr.t ->
-    string ->
-    command:Expr.t ->
-    t
-  (** [make name ~command ~description] returns the corresponding ninja
-      {!type:Rule.t}. *)
-end
-
-(** {1 Ninja builds} *)
-
-(** Helper module to build ninja
-    {{:https://ninja-build.org/manual.html#_build_statements} build statements}. *)
-module Build : sig
-  type t
-  (** Represents the minimal ninja build statement representation for Clerk:
-
-      {[
-        build <outputs>: <rule> [<inputs>]
-          [<vars>]
-      ]}*)
-
-  val make :
-    ?inputs:Expr.t ->
-    ?implicit_in:Expr.t ->
-    outputs:Expr.t ->
-    ?implicit_out:Expr.t ->
-    ?vars:Binding.any list ->
-    string ->
-    t
-  (** [make ~outputs rule] returns the corresponding ninja {!type:Build.t}. *)
-
-  val empty : t
-  (** [empty] is the minimal ninja {!type:Build.t} with ["empty"] as
-      {!field:outputs} and ["phony"] as {!field: rule}. *)
-
-  val unpath : ?sep:string -> string -> string
-  (** [unpath ~sep path] replaces all [/] occurences with [sep] in [path] to
-      avoid ninja writing the corresponding file and use it as sub command. By
-      default, [sep] is set to ["-"]. *)
-end
-
-module Default : sig
-  type t
-
-  val make : Expr.t -> t
-end
-
-type def =
-  | Comment of string
-  | Binding of Binding.any
-  | Rule of Rule.t
-  | Build of Build.t
-  | Default of Default.t
+type def
+(** A ninja statement: comment, global binding, rule, build or default *)
 
 val comment : string -> def
-val binding : 'a Var.t -> 'a -> def
+val binding : Binding.any -> def
 
 val rule :
   ?vars:Binding.any list ->

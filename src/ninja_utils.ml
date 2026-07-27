@@ -108,8 +108,7 @@ module Binding = struct
   type 'a t = 'a Var.t * 'a
   type any = Any : 'a t -> any
 
-  let make v x = v, x
-  let make_any v x = Any (make v x)
+  let make v x = Any (v, x)
 
   let format ~global ppf b =
   match b with
@@ -136,7 +135,7 @@ module Rule = struct
   let format fmt rule =
     Format.fprintf fmt "rule %s\n%a" rule.name
       (Binding.format ~global:false)
-      (Binding.make_any (Var.make_vector "command") rule.command);
+      (Binding.make (Var.make_vector "command") rule.command);
     Option.iter
       (fun d ->
         Format.fprintf fmt "\n  description = %a" Expr.format_display d)
@@ -159,11 +158,6 @@ module Build = struct
   let make ?inputs ?(implicit_in = []) ~outputs ?implicit_out ?(vars = []) rule
       =
     { rule; inputs; implicit_in; outputs; implicit_out; vars }
-
-  let empty = make ~outputs:[Word "empty"] "phony"
-
-  let unpath ?(sep = "-") path =
-    Re.replace_string Re.(compile (str Filename.dir_sep)) ~by:sep path
 
   let format fmt t =
     Format.fprintf fmt "build %a%a: %s%a%a%a%a" Expr.format_path t.outputs
@@ -202,7 +196,7 @@ type def =
   | Default of Default.t
 
 let comment s = Comment s
-let binding v e = Binding (Binding.make_any v e)
+let binding b = Binding b
 
 let rule ?vars ?description name ~command =
   Rule (Rule.make ?vars ?description name ~command)
