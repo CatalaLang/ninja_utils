@@ -36,7 +36,7 @@ end = struct
   let pp (type a) (v : a t) : Format.formatter -> a -> unit =
     match v.kind with
     | Scalar -> Format.pp_print_string
-    | Vector -> Expr.format
+    | Vector -> Expr.format_command
 
   let ref v = Printf.sprintf "${%s}" v.name
 end
@@ -47,7 +47,7 @@ and Expr : sig
     | Splice of t Var.t
     | Raw of string
   and t = elt list
-  val format : Format.formatter -> t -> unit
+  val format_command : Format.formatter -> t -> unit
   val format_display : Format.formatter -> t -> unit
   val format_path : Format.formatter -> t -> unit
 end = struct
@@ -78,7 +78,7 @@ end = struct
     | Word s -> Format.pp_print_string ppf (quote (ninja_escaping s))
     | Splice v -> Format.fprintf ppf "${%s}" (Var.name v)
     | Raw op -> Format.pp_print_string ppf (ninja_escaping (check_raw op))
-  and format ppf t =
+  and format_command ppf t =
     Format.pp_print_list
       ~pp_sep:(fun ppf () -> Format.pp_print_char ppf ' ')
       ninja_format_elt ppf t

@@ -37,24 +37,30 @@
 (** Helper module to build ninja expressions. *)
 module rec Expr : sig
   type elt =
-    | Word of string (* may contain spaces and refs and need quoting *)
+    | Word of string
+    (* one shell word, may embed scalar refs; always quoted in commands,
+       $-escaped unquoted in paths *)
     | Splice of t Var.t
-    | Raw of string (* never to be quoted, must not contain spaces *)
+    | Raw of string
+    (* never quoted: shell operators, ninja builtin refs (${in}); no spaces *)
 
   and t = elt list
-  (** Ninja expressions are represented as raw string lists, which may contain
-      variables or "$-escapes" *)
-
-  val format : Format.formatter -> t -> unit
-  (** [format fmt exp] outputs in [fmt] the string representation of the ninja
-      expression [exp]. Spaces in individual elements are escaped (but no check
-      is made for e.g. newlines) *)
+  (** A ninja expression is a list of elements: [Word]s (single shell words,
+      quoted as needed at emission), [Splice]s (references to vector
+      variables), and [Raw] tokens (emitted as-is: shell operators, ninja
+      builtin references). How each element is dressed depends on the position
+      (command, path, description) where the expression is emitted; emission
+      is internal to this library. *)
 end
 
 (** Ninja variable names, distinguishing binding name ("x") from references in
     expressions ("$x") *)
 and Var : sig
   type _ kind = Scalar : string kind | Vector : Expr.t kind
+  (** A [Scalar] holds a string: referenced with {!ref}, embeddable inside
+      any [Word] or path. A [Vector] holds an {!Expr.t}: referenced only
+      whole, with [Splice], in commands. *)
+
   type 'a t
 
   val make_scalar : string -> string t
@@ -64,9 +70,6 @@ and Var : sig
   (** Var base name, used when binding it *)
 
   val kind : 'a t -> 'a kind
-
-  val pp : 'a t -> Format.formatter -> 'a -> unit
-  (** Formats a binding value as dictated by the var's kind *)
 
   val ref : string t -> string
   (** Var reference with a preceding "$", for use in strings *)
@@ -78,7 +81,6 @@ module Binding : sig
 
   val make : 'a Var.t -> 'a -> 'a t
   val make_any : 'a Var.t -> 'a -> any
-  val format : global:bool -> Format.formatter -> any -> unit
 end
 
 (** {1 Ninja rules} *)
@@ -103,10 +105,6 @@ module Rule : sig
     t
   (** [make name ~command ~description] returns the corresponding ninja
       {!type:Rule.t}. *)
-
-  val format : Format.formatter -> t -> unit
-  (** [format fmt rule] outputs in [fmt] the string representation of the ninja
-      [rule]. *)
 end
 
 (** {1 Ninja builds} *)
@@ -140,17 +138,12 @@ module Build : sig
   (** [unpath ~sep path] replaces all [/] occurences with [sep] in [path] to
       avoid ninja writing the corresponding file and use it as sub command. By
       default, [sep] is set to ["-"]. *)
-
-  val format : Format.formatter -> t -> unit
-  (** [format fmt build] outputs in [fmt] the string representation of the ninja
-      [build]. *)
 end
 
 module Default : sig
   type t
 
   val make : Expr.t -> t
-  val format : Format.formatter -> t -> unit
 end
 
 type def =
