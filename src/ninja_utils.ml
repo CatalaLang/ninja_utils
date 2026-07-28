@@ -144,7 +144,9 @@ module Rule = struct
       rule.description;
     List.iter
       (fun b -> Format.fprintf fmt "\n%a" (Binding.format ~global:false) b)
-      rule.vars
+      rule.vars;
+    (* here, not in format_def: a lone rule must render as it does in a file *)
+    Format.pp_print_newline fmt ()
 end
 
 module Build = struct
@@ -219,9 +221,7 @@ let format_def ppf def =
         ppf
         (String.split_on_char '\n' s)
     | Binding b -> Binding.format ~global:true ppf b
-    | Rule r ->
-      Rule.format ppf r;
-      Format.pp_print_newline ppf ()
+    | Rule r -> Rule.format ppf r
     | Build b -> Build.format ppf b
     | Default d -> Default.format ppf d
   in
