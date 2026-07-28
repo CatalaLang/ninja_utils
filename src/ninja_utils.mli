@@ -138,7 +138,13 @@ module Default : sig
   val format : Format.formatter -> t -> unit
 end
 
-type def
+type def =
+  | Comment of string
+  | Binding of Binding.any
+  | Rule of Rule.t
+  | Build of Build.t
+  | Default of Default.t
+
 (** A ninja statement: comment, global binding, rule, build or default *)
 
 val comment : string -> def
