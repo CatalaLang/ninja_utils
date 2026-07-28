@@ -57,11 +57,12 @@ end
     expressions ("$x") *)
 and Var : sig
   type 'a t = Scalar : string -> string t | Vector : string -> Expr.t t
-  type scalar = string t
-  type vector = Expr.t t
   (** A [Scalar] holds a string: referenced with {!ref}, embeddable inside
       any [Word] or path. A [Vector] holds an {!Expr.t}: referenced only
       whole, with [Splice], in commands. *)
+
+  type scalar = string t
+  type vector = Expr.t t
 
   val make_scalar : string -> scalar
   val make_vector : string -> vector
@@ -96,16 +97,13 @@ module Rule : sig
       ]} *)
 
   val make :
-    ?vars:Binding.any list -> ?description:Expr.t ->  string -> command:Expr.t -> t
-  (** [make name ~command ~description] returns the corresponding ninja
-      {!type:Rule.t}. *)
+    ?vars:Binding.any list -> ?description:Expr.t -> string -> command:Expr.t -> t
+  (** [make name ~command] returns the corresponding ninja {!type:Rule.t}. *)
 
   val format : Format.formatter -> t -> unit
   (** [format fmt rule] outputs in [fmt] the string representation of the ninja
       [rule]. *)
 end
-
-(** {1 Ninja builds} *)
 
 (** Helper module to build ninja
     {{:https://ninja-build.org/manual.html#_build_statements} build statements}. *)
