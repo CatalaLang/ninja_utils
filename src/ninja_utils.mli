@@ -56,20 +56,18 @@ end
 (** Ninja variable names, distinguishing binding name ("x") from references in
     expressions ("$x") *)
 and Var : sig
-  type _ kind = Scalar : string kind | Vector : Expr.t kind
+  type 'a t = Scalar : string -> string t | Vector : string -> Expr.t t
+  type scalar = string t
+  type vector = Expr.t t
   (** A [Scalar] holds a string: referenced with {!ref}, embeddable inside
       any [Word] or path. A [Vector] holds an {!Expr.t}: referenced only
       whole, with [Splice], in commands. *)
 
-  type 'a t
-
-  val make_scalar : string -> string t
-  val make_vector : string -> Expr.t t
+  val make_scalar : string -> scalar
+  val make_vector : string -> vector
 
   val name : 'a t -> string
   (** Var base name, used when binding it *)
-
-  val kind : 'a t -> 'a kind
 
   val ref : string t -> string
   (** Var reference with a preceding "$", for use in strings *)
@@ -84,6 +82,63 @@ module Binding : sig
 end
 
 (** {1 Ninja statements} *)
+
+(** Helper module to build
+    {{:https://ninja-build.org/manual.html#_rules} ninja rules}. *)
+module Rule : sig
+  type t
+  (** Represents the minimal ninja rule representation for Clerk:
+
+      {[
+        rule <name>
+          command = <command>
+          [description = <description>]
+      ]} *)
+
+  val make :
+    ?vars:Binding.any list -> ?description:Expr.t ->  string -> command:Expr.t -> t
+  (** [make name ~command ~description] returns the corresponding ninja
+      {!type:Rule.t}. *)
+
+  val format : Format.formatter -> t -> unit
+  (** [format fmt rule] outputs in [fmt] the string representation of the ninja
+      [rule]. *)
+end
+
+(** {1 Ninja builds} *)
+
+(** Helper module to build ninja
+    {{:https://ninja-build.org/manual.html#_build_statements} build statements}. *)
+module Build : sig
+  type t
+  (** Represents the minimal ninja build statement representation for Clerk:
+
+      {[
+        build <outputs>: <rule> [<inputs>]
+          [<vars>]
+      ]}*)
+
+  val make :
+    ?inputs:Expr.t ->
+    ?implicit_in:Expr.t ->
+    outputs:Expr.t ->
+    ?implicit_out:Expr.t ->
+    ?vars:Binding.any list ->
+    string ->
+    t
+  (** [make ~outputs rule] returns the corresponding ninja {!type:Build.t}. *)
+
+  val format : Format.formatter -> t -> unit
+  (** [format fmt build] outputs in [fmt] the string representation of the ninja
+      [build]. *)
+end
+
+module Default : sig
+  type t
+
+  val make : Expr.t -> t
+  val format : Format.formatter -> t -> unit
+end
 
 type def
 (** A ninja statement: comment, global binding, rule, build or default *)

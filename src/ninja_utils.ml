@@ -16,35 +16,37 @@
 
 (** Ninja variable names *)
 module rec Var : sig
-  type _ kind = Scalar : string kind | Vector : Expr.t kind
-  type 'a t = { name : string; kind : 'a kind }
-  val make_scalar : string -> string t
-  val make_vector : string -> Expr.t t
+  type 'a t = Scalar : string -> string t | Vector : string -> Expr.t t
+  type scalar = string t
+  type vector = Expr.t t
+  val make_scalar : string -> scalar
+  val make_vector : string -> vector
   val name : 'a t -> string
-  val kind : 'a t -> 'a kind
   val pp : 'a t -> Format.formatter -> 'a -> unit
   val ref : string t -> string
 end = struct
-  type _ kind = Scalar : string kind | Vector : Expr.t kind
-  type 'a t = { name : string; kind : 'a kind }
+  type 'a t = Scalar : string -> string t | Vector : string -> Expr.t t
+  type scalar = string t
+  type vector = Expr.t t
 
-  let make_scalar name = { name; kind = Scalar }
-  let make_vector name = { name; kind = Vector }
-  let name v = v.name
-  let kind v = v.kind
+  let make_scalar name = Scalar name
+  let make_vector name = Vector name
+  let name (type a) (v: a t) = match v with
+    | Scalar s -> s
+    | Vector s -> s
 
   let pp (type a) (v : a t) : Format.formatter -> a -> unit =
-    match v.kind with
-    | Scalar -> Format.pp_print_string
-    | Vector -> Expr.format_command
+    match v with
+    | Scalar _ -> Format.pp_print_string
+    | Vector _ -> Expr.format_command
 
-  let ref v = Printf.sprintf "${%s}" v.name
+  let ref (Scalar s) = Printf.sprintf "${%s}" s
 end
 
 and Expr : sig
   type elt =
     | Word of string
-    | Splice of t Var.t
+    | Splice of Var.vector
     | Raw of string
   and t = elt list
   val format_command : Format.formatter -> t -> unit
