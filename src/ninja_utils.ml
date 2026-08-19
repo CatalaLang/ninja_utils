@@ -66,15 +66,24 @@ end = struct
     Re.replace esc_re ~f:(fun g -> "$" ^ Re.Group.get g 0)
 
   let quote =
-  let trailing_backslashes = Re.(compile (seq [group (rep1 (char '\\')) ; eos])) in
-  fun s ->
-    let s = Re.replace trailing_backslashes 
-    ~f:(fun g -> let backslash = Re.Group.get g 1 in backslash ^ backslash ) s in
-    "\"" ^ s ^ "\""
+    let no_escape_needed =
+      Re.(compile (whole_string (rep1 (alt [alnum; set "-_+=./:@^"]))))
+    in
+    let trailing_backslashes =
+      Re.(compile (seq [group (rep1 (char '\\')) ; eos]))
+    in
+    fun s ->
+      if Re.execp no_escape_needed s then s else
+      let s =
+        Re.replace trailing_backslashes s
+          ~f:(fun g -> let backslash = Re.Group.get g 1 in backslash ^ backslash )
+      in
+      "\"" ^ s ^ "\""
 
   let check_raw op =
-  if String.contains op ' ' then invalid_arg ("Raw with space: " ^ op)
-  else op
+    if String.contains op ' '
+    then invalid_arg ("Raw with space: " ^ op)
+    else op
 
   let rec ninja_format_elt ppf = function
     | Word s -> Format.pp_print_string ppf (quote (ninja_escaping s))
